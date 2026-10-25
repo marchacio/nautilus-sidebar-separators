@@ -7,9 +7,8 @@
 
 Organize your Nautilus sidebar bookmarks with customizable section headers and horizontal dividers with native drag & drop reordering.
 
-<img src="assets/preview.svg" alt="Nautilus Sidebar Separators Demo" width="50%">
+<img src="assets/demo.png" alt="Nautilus Sidebar Separators Demo" width="40%">
 
----
 
 ## Quick Installation
 
@@ -21,16 +20,6 @@ Run the following command in your terminal:
 curl -fsSL https://raw.githubusercontent.com/marchacio/nautilus-sidebar-separators/main/install.sh | bash
 ```
 
-### Manual Installation
-
-Clone the repository and run the installer:
-
-```bash
-git clone https://github.com/marchacio/nautilus-sidebar-separators.git
-cd nautilus-sidebar-separators
-./install.sh
-```
-
 The installer will:
 1. Detect your package manager and ensure `nautilus-python` is installed.
 2. Copy `src/sidebar_separators.py` to `~/.local/share/nautilus-python/extensions/`.
@@ -38,7 +27,6 @@ The installer will:
 4. Install the `nautilus-separator` CLI tool into `~/.local/bin/`.
 5. Restart Nautilus via `nautilus -q` to activate the extension.
 
----
 
 ## Usage
 
@@ -105,8 +93,6 @@ rm -rf ~/.local/share/nautilus-separators
 nautilus -q
 ```
 
----
-
 ## Contributing
 
 Contributions, bug reports, and suggestions are warmly welcome!
@@ -115,7 +101,6 @@ Contributions, bug reports, and suggestions are warmly welcome!
 3. Run the unit tests (`python3 -m unittest discover -s tests`).
 4. Commit your changes and open a Pull Request.
 
----
 
 ## License
 
