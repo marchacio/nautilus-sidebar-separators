@@ -1,0 +1,377 @@
+#!/usr/bin/env python3
+"""
+nautilus-separator: CLI management tool for Nautilus Sidebar Separators.
+========================================================================
+Create, remove, list, and manage custom sidebar category dividers in GNOME Files.
+
+Part of the nautilus-sidebar-separators project:
+https://github.com/m4rco-m/nautilus-sidebar-separators
+"""
+
+import argparse
+import os
+import re
+import shutil
+import subprocess
+import sys
+import unicodedata
+from pathlib import Path
+from urllib.parse import quote, unquote
+
+__version__ = "1.0.0"
+
+BOOKMARKS_FILE = Path.home() / ".config" / "gtk-3.0" / "bookmarks"
+SEPARATORS_BASE_DIR = Path.home() / ".local" / "share" / "nautilus-separators"
+
+# Terminal color helpers
+USE_COLOR = sys.stdout.isatty() and os.environ.get("NO_COLOR") is None
+
+
+def colorize(text: str, color_code: str) -> str:
+    """Returns ANSI colored text if terminal output is enabled."""
+    if not USE_COLOR:
+        return text
+    return f"\033[{color_code}m{text}\033[0m"
+
+
+def bold(text: str) -> str:
+    return colorize(text, "1")
+
+
+def green(text: str) -> str:
+    return colorize(text, "32")
+
+
+def yellow(text: str) -> str:
+    return colorize(text, "33")
+
+
+def red(text: str) -> str:
+    return colorize(text, "31")
+
+
+def cyan(text: str) -> str:
+    return colorize(text, "36")
+
+
+def dim(text: str) -> str:
+    return colorize(text, "2")
+
+
+def slugify(text: str) -> str:
+    """
+    Converts a title into a filesystem-safe slug while preserving readability.
+    e.g., 'Work Projects' -> 'work-projects', 'UNIVERSITÀ' -> 'universita'
+    """
+    # Normalize unicode to decompose accents (e.g. è -> e + `)
+    normalized = unicodedata.normalize("NFKD", text)
+    ascii_text = normalized.encode("ascii", "ignore").decode("ascii").lower()
+    # Replace non-alphanumeric characters with hyphens
+    slug = re.sub(r"[^a-z0-9_-]+", "-", ascii_text).strip("-")
+    if not slug:
+        # Fallback for purely non-ascii / emoji strings
+        slug = f"sep-{abs(hash(text)) % 100000}"
+    return slug
+
+
+def ensure_dummy_dir(slug: str) -> Path:
+    """
+    Creates dedicated dummy folder in ~/.local/share/nautilus-separators/<slug>.
+    A dedicated folder per separator is required to prevent Nautilus from collapsing
+    identical bookmark URIs into a single entry.
+    """
+    target_dir = SEPARATORS_BASE_DIR / slug
+    target_dir.mkdir(parents=True, exist_ok=True)
+
+    # Add marker file and .hidden so file choosers don't clutter
+    marker = target_dir / ".nautilus-separator"
+    if not marker.exists():
+        marker.write_text(f"Nautilus separator placeholder: {slug}\n", encoding="utf-8")
+
+    return target_dir
+
+
+def path_to_uri(path: Path) -> str:
+    """Converts a Path into a valid file:// URI."""
+    return f"file://{quote(str(path.resolve()))}"
+
+
+def uri_to_path(uri: str) -> Path | None:
+    """Extracts local Path from a file:// URI."""
+    if not uri.startswith("file://"):
+        return None
+    raw_path = unquote(uri[7:])
+    return Path(raw_path)
+
+
+def read_bookmarks() -> list[str]:
+    """Reads lines from GTK bookmarks file."""
+    if not BOOKMARKS_FILE.exists():
+        return []
+    try:
+        return BOOKMARKS_FILE.read_text(encoding="utf-8").splitlines()
+    except Exception as exc:
+        print(red(f"Error reading bookmarks: {exc}"), file=sys.stderr)
+        return []
+
+
+def write_bookmarks(lines: list[str]) -> bool:
+    """Safely writes lines to GTK bookmarks file."""
+    try:
+        BOOKMARKS_FILE.parent.mkdir(parents=True, exist_ok=True)
+        content = "\n".join(lines)
+        if content and not content.endswith("\n"):
+            content += "\n"
+        BOOKMARKS_FILE.write_text(content, encoding="utf-8")
+        return True
+    except Exception as exc:
+        print(red(f"Error saving bookmarks: {exc}"), file=sys.stderr)
+        return False
+
+
+def restart_nautilus(quiet: bool = False):
+    """Restarts Nautilus file manager process so UI updates take effect immediately."""
+    try:
+        res = subprocess.run(["nautilus", "-q"], capture_output=True, text=True, check=False)
+        if res.returncode == 0:
+            if not quiet:
+                print(green("✔ Nautilus restarted successfully."))
+        else:
+            if not quiet:
+                print(yellow("Notice: 'nautilus -q' returned non-zero code. Changes will appear on next launch."))
+    except FileNotFoundError:
+        if not quiet:
+            print(dim("Notice: 'nautilus' command not in PATH. Please restart Files manually."))
+
+
+def add_separator(name: str, custom_slug: str | None = None, no_restart: bool = False) -> int:
+    """Adds a new separator header bookmark."""
+    clean_name = name.strip()
+    if clean_name.startswith("#"):
+        clean_name = clean_name.lstrip("#").strip()
+
+    if not clean_name:
+        print(red("Error: Separator name cannot be empty."), file=sys.stderr)
+        return 1
+
+    slug = custom_slug.strip() if custom_slug else slugify(clean_name)
+    dummy_dir = ensure_dummy_dir(slug)
+    uri = path_to_uri(dummy_dir)
+    target_line = f"{uri} # {clean_name}"
+
+    lines = read_bookmarks()
+    updated = False
+    new_lines = []
+
+    # Check if a separator with this URI already exists
+    for line in lines:
+        stripped = line.strip()
+        if not stripped:
+            continue
+        parts = stripped.split(maxsplit=1)
+        line_uri = parts[0]
+        if line_uri == uri:
+            new_lines.append(target_line)
+            updated = True
+        else:
+            new_lines.append(stripped)
+
+    if not updated:
+        new_lines.append(target_line)
+
+    if write_bookmarks(new_lines):
+        action_verb = "Updated" if updated else "Added"
+        print(f"{green('✔')} {action_verb} separator header: {bold(clean_name)}")
+        print(f"  {dim('Slug:')} {slug}")
+        print(f"  {dim('Path:')} {dummy_dir}")
+        print(f"  {dim('Entry:')} {target_line}")
+
+        if not no_restart:
+            restart_nautilus()
+        return 0
+    return 1
+
+
+def remove_separator(identifier: str, no_restart: bool = False) -> int:
+    """Removes a separator by its label, slug, or path."""
+    target_ident = identifier.strip().lower()
+    if target_ident.startswith("#"):
+        target_ident = target_ident.lstrip("#").strip()
+
+    lines = read_bookmarks()
+    matched_uris: list[str] = []
+    new_lines: list[str] = []
+
+    for line in lines:
+        stripped = line.strip()
+        if not stripped:
+            continue
+        parts = stripped.split(maxsplit=1)
+        uri = parts[0]
+        label = parts[1] if len(parts) > 1 else ""
+
+        # Extract slug from uri
+        p = uri_to_path(uri)
+        slug = p.name if p else ""
+
+        # Match by label or by slug
+        clean_label = label.lstrip("#").strip().lower()
+        if clean_label == target_ident or slug.lower() == target_ident:
+            matched_uris.append(uri)
+        else:
+            new_lines.append(stripped)
+
+    if not matched_uris:
+        print(yellow(f"No separator found matching '{identifier}'."))
+        return 1
+
+    write_bookmarks(new_lines)
+
+    # Clean up associated dummy directories
+    for uri in matched_uris:
+        p = uri_to_path(uri)
+        if p and p.exists() and str(SEPARATORS_BASE_DIR) in str(p.resolve()):
+            try:
+                shutil.rmtree(p)
+                print(f"  {dim('Removed folder:')} {p}")
+            except Exception as exc:
+                print(yellow(f"Warning: Could not delete folder {p}: {exc}"))
+
+    print(f"{green('✔')} Removed {len(matched_uris)} separator bookmark(s).")
+    if not no_restart:
+        restart_nautilus()
+    return 0
+
+
+def list_separators() -> int:
+    """Lists all configured separators."""
+    lines = read_bookmarks()
+    separators = []
+
+    for idx, line in enumerate(lines, 1):
+        stripped = line.strip()
+        if not stripped:
+            continue
+        parts = stripped.split(maxsplit=1)
+        uri = parts[0]
+        label = parts[1] if len(parts) > 1 else ""
+
+        is_sep_dir = str(SEPARATORS_BASE_DIR) in unquote(uri)
+        is_sep_label = label.startswith("#")
+
+        if is_sep_dir or is_sep_label:
+            p = uri_to_path(uri)
+            slug = p.name if p else "-"
+            display_title = label.lstrip("#").strip() if label else slug.upper()
+            status = "✔ valid" if p and p.exists() else "⚠ missing dir"
+            separators.append({
+                "pos": idx,
+                "title": display_title,
+                "slug": slug,
+                "path": str(p) if p else uri,
+                "status": status,
+            })
+
+    if not separators:
+        print(dim("No sidebar separators currently configured in GTK bookmarks."))
+        print(f"Add one using: {cyan('nautilus-separator add \"CATEGORY NAME\"')}")
+        return 0
+
+    print(bold("Configured Nautilus Sidebar Separators:"))
+    print(dim("─" * 68))
+    print(f"{bold('#'):<4} {bold('NAME'):<22} {bold('SLUG'):<18} {bold('STATUS'):<12}")
+    print(dim("─" * 68))
+    for sep in separators:
+        status_colored = green(sep["status"]) if "✔" in sep["status"] else yellow(sep["status"])
+        print(f"{sep['pos']:<4} {bold(sep['title']):<22} {cyan(sep['slug']):<18} {status_colored:<12}")
+    print(dim("─" * 68))
+    print(dim(f"Total: {len(separators)} separator(s). You can drag them directly inside Nautilus sidebar."))
+    return 0
+
+
+def clean_all(no_restart: bool = False) -> int:
+    """Removes all separators and cleans dummy directories."""
+    lines = read_bookmarks()
+    new_lines = []
+    removed_count = 0
+
+    for line in lines:
+        stripped = line.strip()
+        if not stripped:
+            continue
+        parts = stripped.split(maxsplit=1)
+        uri = parts[0]
+        label = parts[1] if len(parts) > 1 else ""
+
+        is_sep_dir = str(SEPARATORS_BASE_DIR) in unquote(uri)
+        is_sep_label = label.startswith("#")
+
+        if is_sep_dir or is_sep_label:
+            removed_count += 1
+        else:
+            new_lines.append(stripped)
+
+    write_bookmarks(new_lines)
+
+    if SEPARATORS_BASE_DIR.exists():
+        try:
+            shutil.rmtree(SEPARATORS_BASE_DIR)
+            SEPARATORS_BASE_DIR.mkdir(parents=True, exist_ok=True)
+        except Exception as exc:
+            print(yellow(f"Warning: Could not fully clean {SEPARATORS_BASE_DIR}: {exc}"))
+
+    print(f"{green('✔')} Removed {removed_count} separator bookmark(s) and cleared placeholder directories.")
+    if not no_restart:
+        restart_nautilus()
+    return 0
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(
+        prog="nautilus-separator",
+        description="Manage customizable category headers & separators for GNOME Files (Nautilus) sidebar.",
+    )
+    parser.add_argument("-v", "--version", action="version", version=f"%(prog)s {__version__}")
+
+    subparsers = parser.add_subparsers(dest="command", required=True)
+
+    # Subcommand: add
+    parser_add = subparsers.add_parser("add", help="Add a new separator header")
+    parser_add.add_argument("name", help="Display name for the section header (e.g. 'PROJECTS', 'WORK')")
+    parser_add.add_argument("--slug", help="Custom filesystem slug for the dummy folder")
+    parser_add.add_argument("--no-restart", action="store_true", help="Do not restart Nautilus automatically")
+
+    # Subcommand: remove
+    parser_rm = subparsers.add_parser("remove", aliases=["rm"], help="Remove an existing separator header")
+    parser_rm.add_argument("name", help="Name or slug of the separator to remove")
+    parser_rm.add_argument("--no-restart", action="store_true", help="Do not restart Nautilus automatically")
+
+    # Subcommand: list
+    subparsers.add_parser("list", aliases=["ls"], help="List all configured separators")
+
+    # Subcommand: clean
+    parser_clean = subparsers.add_parser("clean", help="Remove all separators and delete all dummy directories")
+    parser_clean.add_argument("--no-restart", action="store_true", help="Do not restart Nautilus automatically")
+
+    # Subcommand: restart
+    subparsers.add_parser("restart", help="Restart Nautilus file manager")
+
+    args = parser.parse_args()
+
+    if args.command == "add":
+        return add_separator(args.name, custom_slug=args.slug, no_restart=args.no_restart)
+    elif args.command in ("remove", "rm"):
+        return remove_separator(args.name, no_restart=args.no_restart)
+    elif args.command in ("list", "ls"):
+        return list_separators()
+    elif args.command == "clean":
+        return clean_all(no_restart=args.no_restart)
+    elif args.command == "restart":
+        restart_nautilus(quiet=False)
+        return 0
+
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
