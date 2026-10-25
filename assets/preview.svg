@@ -49,25 +49,25 @@
   </g>
 
   <!-- SEPARATOR 1: WORK -->
-  <g transform="translate(16, 162)">
-    <text x="6" y="14" class="text-sep">WORK</text>
-    <line x1="58" y1="10" x2="218" y2="10" class="sep-line" />
+  <g transform="translate(16, 156)">
+    <text x="2" y="14" class="text-sep">WORK</text>
+    <line x1="50" y1="10" x2="218" y2="10" class="sep-line" />
   </g>
 
   <!-- Items under WORK -->
-  <g transform="translate(16, 186)">
+  <g transform="translate(16, 180)">
     <rect x="2" y="4" width="16" height="12" rx="2" class="item-icon" />
     <text x="32" y="16" class="text-item">Thesis</text>
   </g>
-  <g transform="translate(16, 218)">
+  <g transform="translate(16, 212)">
     <rect x="2" y="4" width="16" height="12" rx="2" class="item-icon" />
     <text x="32" y="16" class="text-item">University</text>
   </g>
 
   <!-- SEPARATOR 2: PROJECTS -->
-  <g transform="translate(16, 258)">
-    <text x="6" y="14" class="text-sep">PROJECTS</text>
-    <line x1="84" y1="10" x2="218" y2="10" class="sep-line" />
+  <g transform="translate(16, 248)">
+    <text x="2" y="14" class="text-sep">PROJECTS</text>
+    <line x1="76" y1="10" x2="218" y2="10" class="sep-line" />
   </g>
 
   <!-- Items under PROJECTS -->
@@ -82,11 +82,11 @@
   </g>
 
   <!-- SEPARATOR 3: MEDIA -->
-  <g transform="translate(16, 356)">
-    <text x="6" y="14" class="text-sep">MEDIA</text>
-    <line x1="62" y1="10" x2="218" y2="10" class="sep-line" />
+  <g transform="translate(16, 344)">
+    <text x="2" y="14" class="text-sep">MEDIA</text>
+    <line x1="56" y1="10" x2="218" y2="10" class="sep-line" />
   </g>
-  <g transform="translate(16, 380)">
+  <g transform="translate(16, 372)">
     <rect x="2" y="4" width="16" height="12" rx="2" class="item-icon" />
     <text x="32" y="16" class="text-item">Podcasts</text>
   </g>

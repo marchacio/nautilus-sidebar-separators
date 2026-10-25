@@ -37,10 +37,11 @@ class SidebarSeparatorsExtension(GObject.GObject, Nautilus.MenuProvider):
 
     CUSTOM_CSS = b"""
     .nautilus-sidebar-separator-row {
-        margin-top: 10px;
-        margin-bottom: 2px;
-        padding-top: 2px;
-        padding-bottom: 2px;
+        margin-top: 4px;
+        margin-bottom: 0px;
+        padding-top: 0px;
+        padding-bottom: 0px;
+        min-height: 18px;
         background: transparent;
         opacity: 0.90;
     }
@@ -55,13 +56,18 @@ class SidebarSeparatorsExtension(GObject.GObject, Nautilus.MenuProvider):
         letter-spacing: 0.08em;
         text-transform: uppercase;
         color: alpha(currentColor, 0.55);
-        margin-left: 4px;
+        margin-left: 0px;
+        margin-start: 0px;
+        padding-left: 0px;
+        padding-start: 0px;
         margin-right: 8px;
     }
 
     .nautilus-sidebar-separator-line {
         min-height: 1px;
         opacity: 0.25;
+        margin-top: 0px;
+        margin-bottom: 0px;
     }
     """
 
@@ -149,14 +155,19 @@ class SidebarSeparatorsExtension(GObject.GObject, Nautilus.MenuProvider):
         row.set_selectable(False)
         row.set_activatable(False)
         row.set_can_focus(False)
+        row.set_margin_top(4)
+        row.set_margin_bottom(0)
         if not row.has_css_class(self.CSS_CLASS_ROW):
             row.add_css_class(self.CSS_CLASS_ROW)
 
-        # 2. Reconfigure Gtk.Label: reset ellipsizing, expand and alignment
+        # 2. Reconfigure Gtk.Label: reset ellipsizing, expand, margins and alignment
         label.set_ellipsize(Pango.EllipsizeMode.NONE)
         label.set_max_width_chars(-1)
         label.set_hexpand(False)
         label.set_halign(Gtk.Align.START)
+        label.set_margin_start(0)
+        label.set_margin_top(0)
+        label.set_margin_bottom(0)
         if not label.has_css_class(self.CSS_CLASS_LABEL):
             label.add_css_class(self.CSS_CLASS_LABEL)
 
@@ -210,6 +221,8 @@ class SidebarSeparatorsExtension(GObject.GObject, Nautilus.MenuProvider):
         separator = Gtk.Separator.new(Gtk.Orientation.HORIZONTAL)
         separator.set_hexpand(True)
         separator.set_valign(Gtk.Align.CENTER)
+        separator.set_margin_top(0)
+        separator.set_margin_bottom(0)
         separator.add_css_class(self.CSS_CLASS_LINE)
 
         if hasattr(container, "append"):
